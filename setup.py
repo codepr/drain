@@ -19,14 +19,14 @@ class PyTest(TestCommand):
 
 setup(
     **{
-        "name": "streamario",
+        "name": "drain",
         "version": "0.0.1",
-        "url": "http://github.com/codepr/streamario",
+        "url": "http://github.com/codepr/drain",
         "license": "MIT",
         "author": "Andrea Giacomo Baldan",
         "author_email": "a.g.baldan@gmail.com",
-        "description": ("A stream for Mario"),
-        "packages": ["streamario"],
+        "description": ("A typed drain for all kind of dark matters"),
+        "packages": ["drain"],
         "platforms": "any",
         "python_requires": ">=3.8",
         "cmdclass": {"test": PyTest},
