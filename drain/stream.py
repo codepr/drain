@@ -77,10 +77,10 @@ class Stream(Generic[RecordT]):
     async def process_records(self) -> None:
         try:
             async for record in self.observable:
-                await self.results.put(
-                    await async_reduce(
-                        self.ops, self.record_class.loads(record)
-                    )
+                res = await async_reduce(
+                    self.ops, self.record_class.loads(record)
                 )
+                if res:
+                    await self.results.put(res)
         except asyncio.CancelledError:
             pass

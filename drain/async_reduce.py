@@ -11,7 +11,7 @@ async def async_reduce(coros, target):
         try:
             res = await maybe_async(coro(res))
         except DropRecord:
-            pass
+            return None
     return res
 
 
