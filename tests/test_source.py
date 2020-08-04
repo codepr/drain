@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 import drain.stream as stream
 
@@ -10,9 +11,6 @@ async def source():
 class TestStream(unittest.TestCase):
     def test_pipe(self):
         src = stream.Stream(source())
-        res = src.pipe(lambda x: x + 1).sink()
+        res = src.pipe(lambda x: x + 1)
+        asyncio.run(res.sink())
         self.assertEqual([7.0], res)
-
-
-if __name__ == "__main__":
-    unittest.main()
