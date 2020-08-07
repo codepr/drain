@@ -51,13 +51,13 @@ class Stream(Generic[RecordT]):
         concurrency: int = 1,
         name: str = "",
     ):
-        self.source: Source = source
+        self.source = source
         # A list of manipulations to apply just before the consumption of each
         # new record.
         # Can be a synchronous Callable[[RecordT], RecordT] or an awaitable
         # Coroutine[RecordT, None, RecordT], see types.py
         self.ops: List[Processor] = []
-        self.name = name or uuid.uuid4()
+        self.name = name or str(uuid.uuid4())
         self.concurrency = concurrency
         self.record_class = record_class
 
