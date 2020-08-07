@@ -159,7 +159,7 @@ class Stream(Generic[RecordT]):
         """
         self.new_records: asyncio.Queue = asyncio.Queue()
         if not self.source:
-            raise NoObservableSourceError("An source source must be set")
+            raise NoObservableSourceError("An observable source must be set")
         if op:
             self.ops.append(op)
         for _ in range(self.concurrency):
