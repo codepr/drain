@@ -7,7 +7,7 @@ setup(
     license="MIT",
     author="Andrea Giacomo Baldan",
     author_email="a.g.baldan@gmail.com",
-    description="A typed drain for all kind of dark matters",
+    description="A sewer of drains. A typed stream app for all kind of dark matters",
     packages=find_packages(exclude=["tests"]),
     platforms="any",
     python_requires=">=3.7",
