@@ -68,7 +68,9 @@ class Stream(Generic[RecordT]):
         return self
 
     async def __anext__(self) -> RecordT:
-        return await self.new_records.get()
+        record = await self.new_records.get()
+        self.new_records.task_done()
+        return record
 
     def pipe(self, *ops: Processor) -> Stream[RecordT]:
         """Add multiple manipulations to apply to each new record before the
@@ -143,6 +145,7 @@ class Stream(Generic[RecordT]):
         counter = 0
         while True:
             yield counter, await self.new_records.get()
+            self.new_records.task_done()
             counter += 1
 
     async def sink(self, op: Optional[Processor] = None) -> None:
