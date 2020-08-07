@@ -13,6 +13,7 @@ from .utils import async_reduce, takewhile
 from .exceptions import NoObservableSourceError
 from .types import Source, Processor, Predicate, RecordT
 from typing import (
+    Type,
     Tuple,
     Optional,
     AsyncGenerator,
@@ -31,7 +32,7 @@ class Stream(Generic[RecordT]):
     :param source: The source of the records, have to satisfy
                        `AsyncGenerator` methods
 
-    :type record_class: RecordT
+    :type record_class: Type[RecordT]
     :param record_class: A class factory to build records once received, have
                          to be a subclass of `Record` class
 
@@ -46,7 +47,7 @@ class Stream(Generic[RecordT]):
     def __init__(
         self,
         source: Source,
-        record_class: RecordT,
+        record_class: Type[RecordT],
         concurrency: int = 1,
         name: str = "",
     ):

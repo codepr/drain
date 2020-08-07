@@ -6,7 +6,7 @@ Main entry point for creating a streaming application and running asynchronous
 streams.
 """
 import asyncio
-from typing import Any, Set, Callable, Awaitable, Tuple, cast, Coroutine
+from typing import Any, Set, Callable, Awaitable, Tuple, cast, Coroutine, Type
 from .types import RecordT, Source
 from .stream import Stream
 
@@ -25,7 +25,7 @@ class App:
     def stream(
         self,
         source: Source,
-        record_class: RecordT,
+        record_class: Type[RecordT],
         concurrency: int = 1,
         name: str = u"",
     ) -> Stream[RecordT]:
@@ -37,7 +37,7 @@ class App:
         :param source: The source of the records, have to satisfy
                            `AsyncGenerator` methods
 
-        :type record_class: RecordT
+        :type record_class: Type[RecordT]
         :param record_class: A class factory to build records once received, have
                              to be a subclass of `Record` class
 
