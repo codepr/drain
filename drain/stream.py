@@ -27,8 +27,8 @@ class Stream(Generic[RecordT]):
     simple manipulation methods, consumable by multiple async subscribers.
     Concurrency supported and achieved through the asyncio module.
 
-    :type observable: Source
-    :param observable: The source of the records, have to satisfy
+    :type source: Source
+    :param source: The source of the records, have to satisfy
                        `AsyncGenerator` methods
 
     :type record_class: RecordT
@@ -45,12 +45,12 @@ class Stream(Generic[RecordT]):
 
     def __init__(
         self,
-        observable: Source,
+        source: Source,
         record_class: RecordT,
         concurrency: int = 1,
         name: str = "",
     ):
-        self.observable: Source = observable
+        self.source: Source = source
         # A list of manipulations to apply just before the consumption of each
         # new record.
         # Can be a synchronous Callable[[RecordT], RecordT] or an awaitable
@@ -154,8 +154,8 @@ class Stream(Generic[RecordT]):
         :raises: NoObservableSourceError, in case of no `source` specified
         """
         self.new_records: asyncio.Queue = asyncio.Queue()
-        if not self.observable:
-            raise NoObservableSourceError("An observable source must be set")
+        if not self.source:
+            raise NoObservableSourceError("An source source must be set")
         if op:
             self.ops.append(op)
         for _ in range(self.concurrency):
@@ -166,7 +166,7 @@ class Stream(Generic[RecordT]):
         manipulations and putting it into the record queue after, ready to be
         consumed by consumers."""
         try:
-            async for record in self.observable:
+            async for record in self.source:
                 res = await async_reduce(
                     self.ops, self.record_class.loads(record)
                 )
