@@ -7,8 +7,10 @@ from typing import (
     TypeVar,
 )
 
-RecordT = TypeVar("RecordT")
+RecordT = TypeVar("RecordT", bound=Record)
 
-Source = AsyncIterable[Record]
-Processor = Union[Callable[[Record], Record], Coroutine[Record, None, Record]]
-Predicate = Callable[[Record], bool]
+Source = AsyncIterable[RecordT]
+Processor = Union[
+    Callable[[RecordT], RecordT], Coroutine[RecordT, None, RecordT]
+]
+Predicate = Callable[[RecordT], bool]
