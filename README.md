@@ -71,8 +71,8 @@ async def charm_consumer(stream):
 
 
 @app.sink(int_stream)
-async def bottom_consumer(s):
-    async for record in s:
+async def bottom_consumer(stream):
+    async for record in stream:
         print("bottom -> ", record)
 
 

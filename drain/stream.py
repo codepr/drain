@@ -65,6 +65,12 @@ class Stream(Generic[RecordT]):
         return f"Stream<{self.name}>"
 
     def __aiter__(self) -> Stream[RecordT]:
+        if not self.source:
+            raise NoObservableSourceError("An observable source must be set")
+        for _ in range(self.concurrency):
+            asyncio.create_task(self.process_records())
+        if not self.start_event.is_set():
+            self.start_event.set()
         return self
 
     async def __anext__(self) -> RecordT:
@@ -100,6 +106,8 @@ class Stream(Generic[RecordT]):
         :type pred: Predicate
         :param pred: A (RecordT) -> bool predicate
         """
+        if not self.start_event.is_set():
+            self.start_event.set()
         while True:
             data = await self.new_records.get()
             self.new_records.task_done()
@@ -108,7 +116,7 @@ class Stream(Generic[RecordT]):
 
     async def take(
         self, size: int, timeout: Optional[int] = None
-    ) -> AsyncGenerator[List[RecordT], RecordT]:
+    ) -> AsyncGenerator[List[RecordT], None]:
         """Consume the stream in chunks of defined size, yielding a list only
         after the desired size of records has been reached. A timeout can be
         set to wait for in case there's not enough new records to reach the
@@ -134,6 +142,8 @@ class Stream(Generic[RecordT]):
                 q.task_done()
                 return record
 
+        if not self.start_event.is_set():
+            self.start_event.set()
         while True:
             records = [
                 await _read_record(self.new_records) for _ in range(size)
@@ -143,10 +153,19 @@ class Stream(Generic[RecordT]):
     async def enumerate(self) -> AsyncGenerator[Tuple[int, RecordT], None]:
         """Consume the stream enumerating the records."""
         counter = 0
+        if not self.start_event.is_set():
+            self.start_event.set()
         while True:
             yield counter, await self.new_records.get()
             self.new_records.task_done()
             counter += 1
+
+    async def merge(
+        self, *stream: Stream[RecordT]
+    ) -> AsyncGenerator[RecordT, None]:
+        """"""
+        async for record in StreamMerge(self, *stream):
+            yield record
 
     async def sink(self, op: Optional[Processor] = None) -> None:
         """Start processing records and queue them into an asyncio queue.
@@ -157,24 +176,44 @@ class Stream(Generic[RecordT]):
 
         :raises: NoObservableSourceError, in case of no `source` specified
         """
+        self.start_event: asyncio.Event = asyncio.Event()
         self.new_records: asyncio.Queue = asyncio.Queue()
-        if not self.source:
-            raise NoObservableSourceError("An observable source must be set")
         if op:
             self.ops.append(op)
-        for _ in range(self.concurrency):
-            asyncio.create_task(self.process_records())
 
     async def process_records(self) -> None:
         """Process each new record, applying a reduction with all the specified
         manipulations and putting it into the record queue after, ready to be
         consumed by consumers."""
         try:
+            await self.start_event.wait()
             async for record in self.source:
                 res = await async_reduce(
                     self.ops, self.record_class.loads(record)
                 )
                 if res:
                     await self.new_records.put(res)
+                    await asyncio.sleep(0)
         except asyncio.CancelledError:
             pass
+
+
+class StreamMerge:
+    def __init__(self, *streams):
+        self.streams = [self.consume_stream(stream) for stream in streams]
+        self.records = asyncio.Queue()
+
+    def __aiter__(self):
+        loop = asyncio.get_running_loop()
+        for stream in self.streams:
+            loop.create_task(stream)
+        return self
+
+    async def __anext__(self):
+        record = await self.records.get()
+        self.records.task_done()
+        return record
+
+    async def consume_stream(self, stream):
+        async for record in stream:
+            await self.records.put(record)
