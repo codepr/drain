@@ -65,16 +65,23 @@ class Stream(Generic[RecordT]):
         return f"Stream<{self.name}>"
 
     def __aiter__(self) -> Stream[RecordT]:
+        """
+        Async iterator magic method, create nr. of workers based on
+        `concurrency` param.
+
+        :raises: NoObservableSourceError, in case of no `source` specified
+        """
         if not self.source:
             raise NoObservableSourceError("An observable source must be set")
-        for _ in range(self.concurrency):
-            asyncio.create_task(self.process_records())
         if not self.start_event.is_set():
             self.start_event.set()
         return self
 
     async def __anext__(self) -> RecordT:
-        record = await self.new_records.get()
+        try:
+            record = await self.new_records.get()
+        except asyncio.CancelledError:
+            raise StopAsyncIteration()
         self.new_records.task_done()
         return record
 
@@ -98,6 +105,10 @@ class Stream(Generic[RecordT]):
         """
         self.ops.append(functools.partial(takewhile, pred))
         return self
+
+    def merge(self, *streams: Stream[RecordT]) -> StreamMerge:
+        """Merge multiple streams in a single unified stream."""
+        return StreamMerge(self, *streams)
 
     async def filterby(self, pred: Predicate) -> AsyncGenerator[RecordT, None]:
         """Consume the stream by applying a predicate to each new record. Can be
@@ -160,26 +171,21 @@ class Stream(Generic[RecordT]):
             self.new_records.task_done()
             counter += 1
 
-    async def merge(
-        self, *stream: Stream[RecordT]
-    ) -> AsyncGenerator[RecordT, None]:
-        """"""
-        async for record in StreamMerge(self, *stream):
-            yield record
-
     async def sink(self, op: Optional[Processor] = None) -> None:
         """Start processing records and queue them into an asyncio queue.
         Accept an optional last processor to apply to each record.
 
         :type op: Optional[Processor]
         :param op: Last processor to apply to the chain of manipulations.
-
-        :raises: NoObservableSourceError, in case of no `source` specified
         """
+        if not self.source:
+            raise NoObservableSourceError("An observable source must be set")
         self.start_event: asyncio.Event = asyncio.Event()
         self.new_records: asyncio.Queue = asyncio.Queue()
         if op:
             self.ops.append(op)
+        for _ in range(self.concurrency):
+            asyncio.create_task(self.process_records())
 
     async def process_records(self) -> None:
         """Process each new record, applying a reduction with all the specified
@@ -199,21 +205,43 @@ class Stream(Generic[RecordT]):
 
 
 class StreamMerge:
-    def __init__(self, *streams):
+    """Merge multiple streams into a single unified one
+
+    :type streams: Stream[RecordT]
+    :param streams: Vararg of `Stream[RecordT]` type, the streams to be merged
+    """
+
+    def __init__(self, *streams: Stream[RecordT]):
         self.streams = [self.consume_stream(stream) for stream in streams]
-        self.records = asyncio.Queue()
+        self.records: asyncio.Queue = asyncio.Queue()
 
     def __aiter__(self):
+        """Async iterator magic method, create a nr. of workers based on the
+        `concurrency` param number.
+        """
         loop = asyncio.get_running_loop()
         for stream in self.streams:
             loop.create_task(stream)
         return self
 
-    async def __anext__(self):
-        record = await self.records.get()
+    async def __anext__(self) -> RecordT:
+        try:
+            record = await self.records.get()
+        except asyncio.CancelledError:
+            raise StopAsyncIteration()
         self.records.task_done()
         return record
 
-    async def consume_stream(self, stream):
-        async for record in stream:
-            await self.records.put(record)
+    async def consume_stream(self, stream: Stream[RecordT]) -> None:
+        """Start consuming a stream and putting records into an `asyncio.Queue`
+        instance.
+
+        :type stream: Stream[RecordT]
+        :param stream: A `Stream[RecordT]` object to be consumed and piped
+                       into an `asyncio.Queue`.
+        """
+        try:
+            async for record in stream:
+                await self.records.put(record)
+        except asyncio.CancelledError:
+            pass
