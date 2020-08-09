@@ -13,14 +13,7 @@ from .record import Record
 from .utils import async_reduce, takewhile
 from .exceptions import NoObservableSourceError
 from .types import Source, Processor, Predicate, RecordT
-from typing import (
-    Type,
-    Tuple,
-    Optional,
-    AsyncGenerator,
-    Generic,
-    List,
-)
+from typing import Type, Tuple, Optional, AsyncGenerator, Generic, List, Set
 
 
 class Stream(Generic[RecordT]):
@@ -173,6 +166,21 @@ class Stream(Generic[RecordT]):
             yield counter, await self.new_records.get()
             self.new_records.task_done()
             counter += 1
+
+    async def distinct(self) -> AsyncGenerator[RecordT, None]:
+        """Consumer the stream, filtering only distinct elements, dropping
+        repeating ones. The implementation is very basic as it's based on
+        a set tracking records, which over time could grow in size indefinitely.
+        """
+        records: Set[RecordT] = set()
+        if not self.start_event.is_set():
+            self.start_event.set()
+        while True:
+            record = await self.new_records.get()
+            self.new_records.task_done()
+            if record not in records:
+                records.add(record)
+                yield record
 
     async def sink(self, op: Optional[Processor] = None) -> None:
         """Start processing records and queue them into an asyncio queue.

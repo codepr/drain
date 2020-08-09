@@ -9,6 +9,9 @@ from drain.record import Record
 class TestRecord(Record):
     value: int
 
+    def __hash__(self):
+        return self.value
+
 
 async def source():
     for n in range(10):
@@ -18,6 +21,12 @@ async def source():
 
 async def sourceB():
     for n in range(10, 20):
+        yield TestRecord(n).dumps()
+    yield TestRecord(100).dumps()
+
+
+async def source_repeated():
+    for n in [0, 1, 1, 1, 1, 2, 3, 4, 5, 5, 5, 5, 1, 2, 4]:
         yield TestRecord(n).dumps()
     yield TestRecord(100).dumps()
 
@@ -35,6 +44,15 @@ async def consumer_merge(streamA, streamB):
     results = []
     async for record in streamA.merge(streamB):
         if len(results) == 21:
+            break
+        results.append(record.value)
+    return results
+
+
+async def consumer_distinct(stream):
+    results = []
+    async for record in stream.distinct():
+        if len(results) == 6:
             break
         results.append(record.value)
     return results
@@ -164,3 +182,11 @@ class TestStream(unittest.TestCase):
                 19,
             },
         )
+
+    def test_distinct_stream(self):
+        stream = Stream(source_repeated(), record_class=TestRecord)
+        res = asyncio.run(
+            run_tasks([stream.sink(), consumer_distinct(stream)])
+        )[1]
+        self.assertEqual(len(res), 6)
+        self.assertEqual(set(res), {0, 1, 2, 3, 4, 5})
