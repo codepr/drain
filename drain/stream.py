@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 import asyncio
 import functools
+from .record import Record
 from .utils import async_reduce, takewhile
 from .exceptions import NoObservableSourceError
 from .types import Source, Processor, Predicate, RecordT
@@ -59,6 +60,8 @@ class Stream(Generic[RecordT]):
         self.ops: List[Processor] = []
         self.name = name or str(uuid.uuid4())
         self.concurrency = concurrency
+        if not issubclass(record_class, Record):
+            raise ValueError("Record class type is not a subtype of `Record`")
         self.record_class = record_class
 
     def __repr__(self) -> str:

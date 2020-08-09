@@ -61,7 +61,7 @@ class App:
         return stream
 
     def sink(
-        self, stream: Stream[RecordT]
+        self, *streams: Stream[RecordT]
     ) -> Callable[[Callable[[Stream[RecordT]], Awaitable[Any]]], None]:
         """
         Decorator, register a consumer function, which should be an `async def`
@@ -75,7 +75,7 @@ class App:
         """
 
         def add_sink(func):
-            self.sinks.add((func, stream))
+            self.sinks.add((func, *streams))
 
         return add_sink
 

@@ -13,9 +13,11 @@ from dataclasses import dataclass
 class Record:
     """Simple record base class, only defines serialization methods"""
 
+    _serializer = json
+
     def dumps(self):
-        return json.dumps(self.__dict__)
+        return self._serializer.dumps(self.__dict__)
 
     @classmethod
     def loads(cls, raw):
-        return cls(**json.loads(raw))
+        return cls(**cls._serializer.loads(raw))
