@@ -5,7 +5,16 @@ drain.utils.py
 Contains utility functions
 """
 import inspect
-from typing import List, Any, Optional, Union, Callable, Awaitable, cast
+from typing import (
+    List,
+    Any,
+    Optional,
+    Union,
+    Callable,
+    Awaitable,
+    cast,
+    AsyncIterator,
+)
 from .types import Processor, RecordT, Predicate
 from .exceptions import DropRecordError
 
@@ -73,3 +82,14 @@ async def maybe_async(fn: Union[Callable[[Any], Any], Awaitable[Any]]) -> Any:
         fn = cast(Awaitable[Any], fn)
         return await fn
     return fn
+
+
+async def anext(iterator: AsyncIterator[Any]) -> Any:
+    """Return the __anext__() result of any `AsyncIterator` passed in, the
+    definition of `__anext__()` is the only mandatory requirement.
+
+    :type iterator: AsyncIterator[Any]
+    :param iterator: An asynchronous iterator, thus it has to implement
+                     __anext__() magic method
+    """
+    return await iterator.__anext__()

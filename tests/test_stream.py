@@ -1,3 +1,4 @@
+import json
 import asyncio
 import unittest
 import dataclasses
@@ -11,6 +12,14 @@ class TestRecord(Record):
 
     def __hash__(self):
         return self.value
+
+
+@dataclasses.dataclass
+class TestListRecord(Record):
+    values: list
+
+    def __iter__(self):
+        return self.values.__iter__()
 
 
 async def source():
@@ -29,6 +38,16 @@ async def source_repeated():
     for n in [0, 1, 1, 1, 1, 2, 3, 4, 5, 5, 5, 5, 1, 2, 4]:
         yield TestRecord(n).dumps()
     yield TestRecord(100).dumps()
+
+
+async def source_lists():
+    for a, b in zip(range(6), range(1, 6)):
+        yield TestListRecord(
+            [TestRecord(a).dumps(), TestRecord(b).dumps()]
+        ).dumps()
+    yield TestListRecord(
+        [TestRecord(100).dumps(), TestRecord(100).dumps()]
+    ).dumps()
 
 
 async def consumer(stream):
@@ -56,6 +75,23 @@ async def consumer_distinct(stream):
             break
         results.append(record.value)
     return results
+
+
+async def consumer_flatten(stream):
+    results = []
+    async for record in stream.flatten():
+        if len(results) == 5:
+            break
+        results.append(record)
+    return results
+
+
+async def consumer_window(stream, n):
+    async for record in stream.window(n):
+        if record[-1].value == 100:
+            break
+        result = record
+    return result
 
 
 async def consumer_take(stream, n):
@@ -190,3 +226,20 @@ class TestStream(unittest.TestCase):
         )[1]
         self.assertEqual(len(res), 6)
         self.assertEqual(set(res), {0, 1, 2, 3, 4, 5})
+
+    def test_flatten_stream(self):
+        stream = Stream(source_lists(), record_class=TestListRecord)
+        res = asyncio.run(
+            run_tasks([stream.sink(), consumer_flatten(stream)])
+        )[1]
+        self.assertEqual(len(res), 5)
+        self.assertEqual(
+            set(res), set(map(lambda x: json.dumps({"value": x}), {0, 1, 2})),
+        )
+
+    def test_window_stream(self):
+        stream = Stream(source(), record_class=TestRecord)
+        res = asyncio.run(
+            run_tasks([stream.sink(), consumer_window(stream, 4)])
+        )[1]
+        self.assertEqual(res, tuple(map(TestRecord, [6, 7, 8, 9])))

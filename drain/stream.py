@@ -10,7 +10,7 @@ import uuid
 import asyncio
 import functools
 from .record import Record
-from .utils import async_reduce, takewhile
+from .utils import async_reduce, takewhile, anext
 from .exceptions import NoObservableSourceError
 from .types import Source, Processor, Predicate, RecordT
 from typing import Type, Tuple, Optional, AsyncGenerator, Generic, List, Set
@@ -69,9 +69,12 @@ class Stream(Generic[RecordT]):
         """
         if not self.source:
             raise NoObservableSourceError("An observable source must be set")
+        self._enable()
+        return self
+
+    def _enable(self):
         if not self.start_event.is_set():
             self.start_event.set()
-        return self
 
     async def __anext__(self) -> RecordT:
         try:
@@ -113,11 +116,9 @@ class Stream(Generic[RecordT]):
         :type pred: Predicate
         :param pred: A (RecordT) -> bool predicate
         """
-        if not self.start_event.is_set():
-            self.start_event.set()
+        self._enable()
         while True:
-            data = await self.new_records.get()
-            self.new_records.task_done()
+            data = await anext(self)
             if pred(data):
                 yield data
 
@@ -149,8 +150,7 @@ class Stream(Generic[RecordT]):
                 q.task_done()
                 return record
 
-        if not self.start_event.is_set():
-            self.start_event.set()
+        self._enable()
         while True:
             records = [
                 await _read_record(self.new_records) for _ in range(size)
@@ -160,11 +160,10 @@ class Stream(Generic[RecordT]):
     async def enumerate(self) -> AsyncGenerator[Tuple[int, RecordT], None]:
         """Consume the stream enumerating the records."""
         counter = 0
-        if not self.start_event.is_set():
-            self.start_event.set()
+        self._enable()
         while True:
-            yield counter, await self.new_records.get()
-            self.new_records.task_done()
+            record = await anext(self)
+            yield counter, record
             counter += 1
 
     async def distinct(self) -> AsyncGenerator[RecordT, None]:
@@ -173,14 +172,40 @@ class Stream(Generic[RecordT]):
         a set tracking records, which over time could grow in size indefinitely.
         """
         records: Set[RecordT] = set()
-        if not self.start_event.is_set():
-            self.start_event.set()
+        self._enable()
         while True:
-            record = await self.new_records.get()
-            self.new_records.task_done()
+            record = await anext(self)
             if record not in records:
                 records.add(record)
                 yield record
+
+    async def flatten(self) -> AsyncGenerator[RecordT, None]:
+        """Each record is a list of records, this method flatten the list by
+        returning a single async generator of records.
+        """
+        self._enable()
+        while True:
+            records = await anext(self)
+            for record in records:
+                yield record
+
+    async def window(
+        self, n: int
+    ) -> AsyncGenerator[Tuple[RecordT, ...], None]:
+        """Consume records on a sliding window based on the number of wanted
+        records.
+
+        :type n: int
+        :param n: The size of the moving window
+        """
+        self._enable()
+        window = []
+        while True:
+            record = await anext(self)
+            window.append(record)
+            if len(window) > n:
+                window.pop(0)
+            yield tuple(window)
 
     async def sink(self, op: Optional[Processor] = None) -> None:
         """Start processing records and queue them into an asyncio queue.
