@@ -22,7 +22,7 @@ import drain
 
 
 # Path of the log to watch
-LOG_PATH = "../logan/access.log"
+LOG_PATH = "../../../scratch/logan/access.log"
 
 
 @dataclass
@@ -42,6 +42,15 @@ class LogRecord(drain.Record):
         except IndexError:
             section = ""
         return section
+
+    @property
+    def method(self) -> str:
+        tokens = self.row.split(" ")
+        try:
+            method = tokens[5][1:]
+        except IndexError:
+            method = ""
+        return method
 
 
 # Create a simple async generator based source
@@ -109,6 +118,7 @@ class LogStats:
         self.window = self.Window(window_size)
         self.alert = False
         self.alert_threshold = alert_threshold
+        self.methods = defaultdict(int)
         self.hits = defaultdict(int)
         self.hits_per_second = 0
         self.loop = asyncio.get_running_loop()
@@ -118,12 +128,19 @@ class LogStats:
         self.loop.call_later(mean_hits_every, self.mean_hits)
 
     def hit(self, record):
+        self.methods[record.method] += 1
         self.hits[record.section] += 1
         self.hits_per_second += 1
 
     def print_hits(self):
         max_hits = max(self.hits, key=self.hits.get)
         min_hits = min(self.hits, key=self.hits.get)
+        methods = ""
+        total_calls = sum(self.methods.values())
+        methods = " ".join(
+            [f"{k}={v/total_calls}" for k, v in self.methods.items()]
+        )
+        print(f"Methods (%): {methods}")
         print(f"Max hits by section: {max_hits} {self.hits[max_hits]}",)
         print(f"Min hits by section: {min_hits} {self.hits[min_hits]}",)
         self.loop.call_later(self.stats_every, self.print_hits)
