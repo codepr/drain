@@ -10,6 +10,8 @@
 # and print some stats like top hits by section or check for the log flow size
 # printing an alert based on a threshold.
 
+import os
+import sys
 import asyncio
 import subprocess
 from datetime import datetime as dt
@@ -154,6 +156,10 @@ async def log_consumer(stream):
 
 
 if __name__ == "__main__":
+    # Check file exists
+    if not os.path.isfile(LOG_PATH):
+        print(f"Cannot open file {LOG_PATH}: No such file or directory")
+        sys.exit(0)
     try:
         app.run()
     except KeyboardInterrupt:
