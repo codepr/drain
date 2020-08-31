@@ -1,7 +1,10 @@
 Drain
 =====
 
-A sewer of streams.
+A sewer of streams. Like a drain, aims to channel multiple sources into a
+single stream which can be used to perform some operations directly on each new
+record. See [a simple HTTP log analyzer](examples/logan.py) as an example of
+usage.
 
 **Goals**
 
