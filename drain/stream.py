@@ -54,7 +54,11 @@ class Stream(Generic[RecordT]):
         self.name = name or str(uuid.uuid4())
         self.concurrency = concurrency
         if not issubclass(record_class, Record):
-            raise ValueError("Record class type is not a subtype of `Record`")
+            raise ValueError(
+                "Record class type: {} is not a subtype of `Record`".format(
+                    type(record_class)
+                )
+            )
         self.record_class = record_class
 
     def __repr__(self) -> str:
